@@ -2250,6 +2250,20 @@ body.services-cosmic-chrome .site-footer::after{
   --tag-y:calc(var(--line-len) * -0.7431);
 }
 @media (max-width:900px){
+  body.services-mobile-nav-solid nav{
+    background:transparent;
+    -webkit-backdrop-filter:none;
+    backdrop-filter:none;
+    border-bottom:0;
+    box-shadow:none;
+  }
+  body.services-mobile-nav-solid .nav-open .nav-links{
+    background:rgba(255,255,255,.94);
+    -webkit-backdrop-filter:blur(14px);
+    backdrop-filter:blur(14px);
+    border:0;
+    box-shadow:none;
+  }
   #page-services.page.active{
     padding-top:calc(var(--nav-h) + 14px);
   }
@@ -2280,6 +2294,8 @@ body.services-cosmic-chrome .site-footer::after{
     margin-top:clamp(.65rem,1.4vh,1.1rem);
     margin-bottom:clamp(.65rem,1.5vh,1.25rem);
     padding-top:clamp(.65rem,1.4vh,1.1rem);
+    top:calc(var(--nav-h) * -1 + 10px);
+    z-index:4;
   }
   .services-doc__body,
   .services-doc__pane--top .services-doc__body{
@@ -6612,6 +6628,8 @@ window.resetServicesDocReveal=function(){
   const root=document.getElementById('page-services');
   if(!root) return;
   if(typeof window.stopServicesCosmic==='function') window.stopServicesCosmic();
+  root.scrollTop=0;
+  root.querySelectorAll('.services-doc__pane').forEach(el=>{el.scrollTop=0;});
   root.querySelectorAll('.services-doc__reveal').forEach(el=>{el.classList.remove('is-inview');});
   if(root._servicesDocIo){
     try{root._servicesDocIo.disconnect();}catch(e){}
@@ -6621,6 +6639,7 @@ window.resetServicesDocReveal=function(){
 function runPageHooks(n, onHeavyDone){
   document.body.classList.toggle('about-with-work', n==='about');
   document.body.classList.toggle('services-page-lock', n==='services');
+  document.body.classList.toggle('services-mobile-nav-solid', n==='services');
   if(n!=='services'&&typeof window.resetServicesDocReveal==='function') window.resetServicesDocReveal();
   if(n!=='about'&&typeof window.resetAboutWorkReelHeadingReveal==='function') window.resetAboutWorkReelHeadingReveal();
   if(n!=='about'&&typeof window.resetAboutMobileSequence==='function') window.resetAboutMobileSequence();
@@ -6637,6 +6656,14 @@ function runPageHooks(n, onHeavyDone){
     },360);
   }else if(typeof window.stopAboutIntro==='function'){
     window.stopAboutIntro();
+  }
+  if(n==='services'){
+    const servicesPage=document.getElementById('page-services');
+    if(servicesPage){
+      servicesPage.scrollTop=0;
+      servicesPage.querySelectorAll('.services-doc__pane').forEach(el=>{el.scrollTop=0;});
+    }
+    if(typeof window.stopServicesCosmic==='function') window.stopServicesCosmic();
   }
   function runHeavy(){
     try{
@@ -7712,6 +7739,7 @@ let workNextId=nextId(works),workFilter='all',workView='list',editWorkId=null,wo
 let postNextId=nextId(posts),editPostId=null,postImgData=null;
 const PROJECT_STORAGE_KEY='wnc_projects_v1';
 const PROJECTS_DATA_URL='projects.json';
+const POSTS_DATA_URL='posts.json';
 function persistWorks(){
   const okMain=saveJSON(STORAGE_KEYS.works, works);
   const okBackup=saveJSON(STORAGE_KEYS.worksBackup, works);
@@ -7719,6 +7747,52 @@ function persistWorks(){
 }
 function persistPosts(){return saveJSON(STORAGE_KEYS.posts, posts);}
 function persistProjects(){return saveJSON(PROJECT_STORAGE_KEY, projects);}
+function normalizePostRecord(raw){
+  if(!raw||typeof raw!=='object') return raw;
+  const img=String(raw.img||raw.coverImage||'').trim();
+  return {
+    id:raw.id,
+    cat:String(raw.cat||'Essay').trim()||'Essay',
+    title:String(raw.title||'').trim(),
+    author:String(raw.author||'WRITE NOW COMPANY').trim()||'WRITE NOW COMPANY',
+    media:String(raw.media||raw.cat||'Essay').trim()||String(raw.cat||'Essay').trim()||'Essay',
+    date:String(raw.date||'').trim(),
+    excerpt:String(raw.excerpt||'').trim(),
+    content:String(raw.content||'').trim(),
+    img,
+    hasImg:raw.hasImg===true||raw.hasImg==='true'||raw.hasImg===1||raw.hasImg==='1'||!!img
+  };
+}
+function normalizePostListData(data){
+  if(!Array.isArray(data)) return null;
+  return data.map(normalizePostRecord);
+}
+function clonePostList(list){
+  if(!Array.isArray(list)) return [];
+  try{return JSON.parse(JSON.stringify(list));}
+  catch(e){return list.map(item=>item&&typeof item==='object'?{...item}:item);}
+}
+posts=clonePostList(normalizePostListData(posts)||DATA_DEFAULT.posts);
+postNextId=nextId(posts);
+async function loadPostsFromJson(){
+  try{
+    const url=new URL(POSTS_DATA_URL, window.location.href);
+    const res=await fetch(url.href,{cache:'no-store'});
+    if(!res.ok) throw new Error(`Failed to load ${POSTS_DATA_URL}: ${res.status}`);
+    return normalizePostListData(await res.json());
+  }catch(e){
+    console.warn('posts.json load skipped', e);
+    return null;
+  }
+}
+async function hydratePostsFromJson(){
+  const jsonPosts=await loadPostsFromJson();
+  if(!Array.isArray(jsonPosts)||!jsonPosts.length) return posts;
+  posts=clonePostList(jsonPosts);
+  postNextId=nextId(posts);
+  renderPosts();
+  return posts;
+}
 function cloneProjectList(list){
   if(!Array.isArray(list)) return [];
   try{return JSON.parse(JSON.stringify(list));}
@@ -11431,7 +11505,7 @@ window.addEventListener('pageshow',function(){ wncApplyAdminMode(); });
     stopCaptionChipCycle();
   },220);
 })();
-renderProjectPage();renderPosts();hydrateProjectsFromJson();
+renderProjectPage();renderPosts();hydrateProjectsFromJson();hydratePostsFromJson();
 </script>
 <!-- Code injected by live-server -->
 <script>
